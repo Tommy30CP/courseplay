@@ -58,6 +58,7 @@ function FieldworkAIDriver:init(vehicle)
 	-- duration of the last turn maneuver. This is a default value and the driver will measure
 	-- the actual turn times. Used to calculate the remaining fieldwork time
 	self.turnDurationMs = 20000
+	self:setMarkers()
 end
 
 function FieldworkAIDriver:setHudContent()
@@ -181,7 +182,6 @@ function FieldworkAIDriver:startFieldworkWithPathfinding(ix)
 		self:changeToFieldwork()
 	end
 end
-
 
 function FieldworkAIDriver:stop(msgReference)
 	self:stopWork()
@@ -436,6 +436,10 @@ function FieldworkAIDriver:onWaypointChange(ix)
 		end
 	end
 	AIDriver.onWaypointChange(self, ix)
+end
+
+function FieldworkAIDriver:onTowedImplementPassedWaypoint(ix)
+	self:debug('Implement passsed waypoint %d', ix)
 end
 
 --- Should we return to the first point of the course after we are done?
@@ -915,4 +919,42 @@ end
 --- Never continue automatically at a wait point
 function FieldworkAIDriver:isAutoContinueAtWaitPointEnabled()
 	return false
+end
+
+--- For each work area: create nodes to mark the front and the back of the area. These will be used
+--- to determine when to raise/lower the tools
+function FieldworkAIDriver:setMarkers()
+	self.markers = {}
+	local addMarkers = function(object)
+		for k, area in courseplay:workAreaIterator(object) do
+			-- TODO: generalize work area types to ignore
+			if area.start and area.height and area.width and area.type ~= WorkAreaType.RIDGEMARKER then
+				local width, _, _ = localToLocal(area.width, area.start, 0, 0, 0)
+				local frontMarkerNode = createTransformGroup(nameNum(object) .. ' front marker')
+				link(area.start, frontMarkerNode)
+				setTranslation(frontMarkerNode, width / 2, 0, 0)
+				local backMarkerNode = createTransformGroup(nameNum(object) .. ' back marker')
+				link(area.height, backMarkerNode)
+				setTranslation(backMarkerNode, width / 2, 0, 0)
+				table.insert(self.markers, {object = object, workArea = area, front = frontMarkerNode, back = backMarkerNode})
+				self:debug('Markers added to %s - %s', nameNum(object), g_workAreaTypeManager.workAreaTypes[area.type].name)
+			end
+		end
+	end
+	addMarkers(self.vehicle)
+	for _, implement in pairs(self.vehicle:getAttachedImplements()) do
+		addMarkers(implement.object)
+	end
+end
+
+function FieldworkAIDriver:onDraw()
+	if self.markers then
+		for _, markers in pairs(self.markers) do
+			if markers.front and markers.back then
+				DebugUtil.drawDebugNode(markers.front, getName(markers.front))
+				DebugUtil.drawDebugNode(markers.back, getName(markers.back))
+			end
+		end
+	end
+	AIDriver.onDraw(self)
 end

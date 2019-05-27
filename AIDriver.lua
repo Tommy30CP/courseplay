@@ -133,7 +133,7 @@ function AIDriver:init(vehicle)
 	---@type PurePursuitController
 	self.ppc = PurePursuitController(self.vehicle)
 	self.vehicle.cp.ppc = self.ppc
-	self.ppc:setAIDriver(self)
+	self.ppc:setAIDriver(self, 'onWaypointPassed', 'onWaypointChange')
 	self.ppc:enable()
 	self.nextWpIx = 1
 	self.acceleration = 1
@@ -333,6 +333,10 @@ function AIDriver:driveCourse(dt)
 		-- let the code in turn drive the turn maneuvers
 		-- TODO: refactor turn so it does not actually drives but only gives us the direction like goReverse()
 		courseplay:turn(self.vehicle, dt, self.turnContext)
+	elseif self.useDirection then
+		lx, lz = self.ppc:getGoalPointDirection()
+		self:debug('%.1f %.1f', lx, lz)
+		self:driveVehicleInDirection(dt, self.allowedToDrive, moveForwards, lx / 2, lz, self:getSpeed())
 	else
 		-- use the PPC goal point when forward driving or reversing without trailer
 		local gx, _, gz = self.ppc:getGoalPointLocalPosition()
