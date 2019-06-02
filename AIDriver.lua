@@ -128,6 +128,11 @@ function AIDriver:init(vehicle)
 	self.states = {}
 	self:initStates(AIDriver.myStates)
 	self.vehicle = vehicle
+	-- set up a global container on the vehicle to persist AI Driver related data between AIDriver incarnations
+	if not vehicle.cp.aiDriverData then
+		vehicle.cp.aiDriverData = {}
+	end
+	self.aiDriverData = vehicle.cp.aiDriverData
 	self:debug('creating AIDriver')
 	self.maxDrivingVectorLength = self.vehicle.cp.turnDiameter
 	---@type PurePursuitController
@@ -451,7 +456,6 @@ function AIDriver:getReverseDrivingDirection()
 
 	local moveForwards = true
 	local isReverseActive = false
-	-- TODO: refactor this! No dependencies on modes here!
 	-- get the direction to drive to
 	local lx, lz = self:getDirectionToGoalPoint()
 	-- take care of reversing
@@ -599,7 +603,10 @@ end
 function AIDriver:startTurn(ix)
 	self.turnIsDriving = true
 	self:debug('Starting a turn.')
-	self.turnContext = TurnContext(self.course, ix)
+	-- as TurnContext() creates a node when needed, store that node in the vehicle storage and on the the AIDriver
+	-- object, so the node is created only once and never destroyed (if this was a proper language with a destructor
+	-- then this would not be necessary)
+	self.turnContext = TurnContext(self.course, ix, self.aiDriverData.turnEndWaypointNode)
 end
 
 function AIDriver:onTurnEnd()
